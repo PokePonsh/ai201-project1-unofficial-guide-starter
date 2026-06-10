@@ -9,10 +9,8 @@
 
 ## Domain
 
-<!-- What topic or category of knowledge does your system cover?
-     Why is this knowledge valuable, and why is it hard to find through official channels?
-     Example: "Student reviews of CS professors at [university] — useful because official
-     course descriptions don't reflect teaching style, exam difficulty, or workload." -->
+Student reviews and opinions on the Chemistry teaching faculty at Temple University. This is useful, as it allows distinctions between teachers' teaching style, grading, workload, and personality. 
+This is unavailible through official channels, as professor feedback from students is not made public, and teaching styles as well as class workload is not shared anywhere on official university channels.
 
 ---
 
@@ -24,16 +22,18 @@
 
 | # | Source | Type | URL or file path |
 |---|--------|------|-----------------|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-| 6 | | | |
-| 7 | | | |
-| 8 | | | |
-| 9 | | | |
-| 10 | | | |
+| 1 | https://www.ratemyprofessors.com/professor/1010415| Professor Feedback reviews | URL |
+| 2 | https://www.ratemyprofessors.com/professor/2166653| Professor Feedback reviews | URL |
+| 3 | https://www.ratemyprofessors.com/professor/1287533| Professor Feedback reviews | URL|
+| 4 | https://www.ratemyprofessors.com/professor/733530| Professor Feedback reviews | URL |
+| 5 | https://www.ratemyprofessors.com/professor/2423438| Professor Feedback reviews | URL |
+| 6 | https://www.ratemyprofessors.com/professor/1041500| Professor Feedback reviews | URL |
+| 7 | https://www.ratemyprofessors.com/professor/2315341| Professor Feedback reviews | URL |
+| 8 | https://www.ratemyprofessors.com/professor/240055| Professor Feedback reviews | URL |
+| 9 | https://www.ratemyprofessors.com/professor/2854648| Professor Feedback reviews | URL |
+| 10 | https://www.ratemyprofessors.com/professor/2045650| Professor Feedback reviews | URL |
+| 11 | https://www.ratemyprofessors.com/professor/1238947| Professor Feedback reviews | URL |
+| 12 | https://www.ratemyprofessors.com/professor/1700141| Professor Feedback reviews | URL |
 
 ---
 
