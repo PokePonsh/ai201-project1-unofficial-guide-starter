@@ -99,10 +99,11 @@ def build_metadata(chunk: dict, source_file: str) -> dict:
     """
     # Derive a per-professor position by tracking how many chunks
     # we've seen for this professor (chunk_id is global, we want local)
+    professor = chunk["professor_name"]
     return {
-        "source":          source_file,
+        "source":          f"Rate My Professor - {professor}",
         "chunk_position":  chunk["chunk_id"],
-        "professor_name":  chunk["professor_name"],
+        "professor_name":  professor,
         "token_estimate":  chunk["token_estimate"]
     }
 
