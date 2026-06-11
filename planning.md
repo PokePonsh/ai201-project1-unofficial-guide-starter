@@ -77,10 +77,10 @@ This is unavailible through official channels, as professor feedback from studen
 | # | Question | Expected answer |
 |---|----------|-----------------|
 | 1 | Which professor teaches the concepts of Organic Chemsitry the best?| Steven Fleming|
-| 2 | Which professor between (professor A) and (Professor B) has a better grading curve?| Professor B|
-| 3 | What is the general opinion of (professor C)'s teaching style| Hard to understand and disorganized|
-| 4 | Between these two professors (Prof D and E) which is better at explaining Physical Chemistry| Professor E|
-| 5 | Which Professor is most leniant about late work| Professor B and E are both equally leniant|
+| 2 | Which professor between Steven Fleming and Serge Jasmin has a better grading curve?| Serge Jasmin|
+| 3 | What is the general opinion of Fleming's teaching style| Clear, Content Heavy, Ocassionally dismissive.|
+| 4 | Between these two professors: Dr. Kaur or Dr. Fleming which is better at explaining Organic Chemistry| Dr. kaur|
+| 5 | Which Professor is most leniant about late work| Professor Kaur|
 
 ---
 

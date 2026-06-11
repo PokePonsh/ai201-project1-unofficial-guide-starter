@@ -1,16 +1,23 @@
 """
-RAG Pipeline — Retrieval + Grounded Generation
-------------------------------------------------
-Wires the retrieval system into Groq's llama-3.3-70b-versatile.
-Forces the LLM to answer only from retrieved student reviews,
-never from outside knowledge.
+Combined Pipeline — Q&A Only
+------------------------------
+Self-contained RAG pipeline that reads from an existing ChromaDB.
+Designed to be imported by app.py or run standalone.
+
+Does NOT scrape or embed — run rmp_scraper.py and embed_and_store.py first.
 
 Usage:
-    python rag.py                        # interactive mode
-    python rag.py "your question here"   # single query mode
+    # Standalone interactive mode
+    python comb_prog.py
+
+    # Standalone single question
+    python comb_prog.py "Who is the easiest grader?"
+
+    # Imported by app.py
+    from comb_prog import ask, ALL_PROFESSORS
 
 Dependencies:
-    pip install sentence-transformers chromadb rapidfuzz groq
+    pip install sentence-transformers chromadb rapidfuzz groq python-dotenv
 """
 
 import os
@@ -40,7 +47,7 @@ FUZZY_CUTOFF = 90
 
 
 # ─────────────────────────────────────────────
-# SYSTEM PROMPT — grounding rules for the LLM
+# SYSTEM PROMPT
 # ─────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are an assistant that helps students at Temple 
@@ -66,55 +73,50 @@ You are a summarizer of student opinions, not an expert advisor."""
 
 
 # ─────────────────────────────────────────────
-# SETUP
+# STARTUP — load once, reuse for every query
 # ─────────────────────────────────────────────
 
-def load_clients():
-    """
-    Loads the embedding model, ChromaDB collection, and Groq client.
-    Reads the Groq API key from the GROQ_API_KEY environment variable.
-    """
+def _load_clients():
     print(f"Loading embedding model: {MODEL_NAME}")
     model = SentenceTransformer(MODEL_NAME)
 
     print(f"Connecting to ChromaDB at ./{DB_DIR}")
     client     = chromadb.PersistentClient(path=DB_DIR)
     collection = client.get_or_create_collection(
-        name=COLLECTION,
-        metadata={"hnsw:space": "cosine"}
+        name     = COLLECTION,
+        metadata = {"hnsw:space": "cosine"}
     )
     print(f"Collection '{COLLECTION}' — {collection.count()} chunks loaded")
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        raise ValueError(
-            "GROQ_API_KEY environment variable not set.\n"
-            "Set it with: set GROQ_API_KEY=your_key_here  (Windows)\n"
-            "         or: export GROQ_API_KEY=your_key_here  (Mac/Linux)"
-        )
+        raise ValueError("GROQ_API_KEY not found in .env file.")
     groq_client = Groq(api_key=api_key)
     print(f"Groq client ready — model: {GROQ_MODEL}\n")
 
     return model, collection, groq_client
 
 
-def get_all_professors(collection: chromadb.Collection) -> list:
-    """
-    Retrieves the unique list of all professor names from ChromaDB.
-    """
+def _get_all_professors(collection: chromadb.Collection) -> list:
     results    = collection.get(include=["metadatas"])
     professors = list({m["professor_name"] for m in results["metadatas"]})
     return sorted(professors)
+
+
+# Load everything once at module import time
+print("Initializing pipeline...")
+_MODEL, _COLLECTION, _GROQ_CLIENT = _load_clients()
+ALL_PROFESSORS = _get_all_professors(_COLLECTION)
+print(f"Professors in database: {', '.join(ALL_PROFESSORS)}\n")
 
 
 # ─────────────────────────────────────────────
 # NAME DETECTION
 # ─────────────────────────────────────────────
 
-def detect_professors(query: str, all_professors: list) -> list:
+def detect_professors(query: str) -> list:
     """
     Scans the query for professor names using fuzzy matching.
-    Returns matched professor names from the database.
 
         0 matches → use all professors
         1 match   → single professor mode
@@ -126,19 +128,13 @@ def detect_professors(query: str, all_professors: list) -> list:
         "dr.", "dr", "mr.", "mr", "ms.", "ms",
         "professor", "prof", "prof."
     }
-
-    for professor in all_professors:
-        name_parts = professor.lower().split()
-
-        for part in name_parts:
+    for professor in ALL_PROFESSORS:
+        for part in professor.lower().split():
             if len(part) <= 3 or part in skip_tokens:
                 continue
-
-            score = fuzz.partial_ratio(part, query_lower)
-            if score >= FUZZY_CUTOFF:
+            if fuzz.partial_ratio(part, query_lower) >= FUZZY_CUTOFF:
                 matched.append(professor)
                 break
-
     return matched
 
 
@@ -146,40 +142,20 @@ def detect_professors(query: str, all_professors: list) -> list:
 # RETRIEVAL
 # ─────────────────────────────────────────────
 
-def retrieve(
-    query:      str,
-    professors: list,
-    model:      SentenceTransformer,
-    collection: chromadb.Collection
-) -> list:
-    """
-    Routes to the correct retrieval strategy based on professor count.
-    """
-    query_embedding = model.encode(query).tolist()
-
+def _retrieve(query: str, professors: list) -> list:
+    query_embedding = _MODEL.encode(query).tolist()
     if len(professors) == 1:
-        return _query_single(query_embedding, professors[0], collection)
+        return _query_single(query_embedding, professors[0])
+    return _query_multi(query_embedding, professors)
 
-    return _query_multi(query_embedding, professors, collection)
 
-
-def _query_single(
-    query_embedding: list,
-    professor:       str,
-    collection:      chromadb.Collection
-) -> list:
-    """
-    K=5, scoped to one professor, filtered by score cutoff.
-    Returns results above SCORE_CUTOFF if any exist,
-    otherwise falls back to top 3 regardless of score.
-    """
-    results = collection.query(
+def _query_single(query_embedding: list, professor: str) -> list:
+    results = _COLLECTION.query(
         query_embeddings = [query_embedding],
         n_results        = K_SINGLE,
         where            = {"professor_name": professor},
         include          = ["documents", "metadatas", "distances"]
     )
-
     all_results = []
     for doc, meta, distance in zip(
         results["documents"][0],
@@ -188,33 +164,23 @@ def _query_single(
     ):
         score = round(1 - distance, 4)
         all_results.append({
-            "professor_name":  meta["professor_name"],
-            "score":           score,
-            "chunk_position":  meta["chunk_position"],
-            "review_number":   meta["review_number"],
-            "source":          meta["source"],
-            "text":            doc
+            "professor_name": meta["professor_name"],
+            "score":          score,
+            "chunk_position": meta["chunk_position"],
+            "review_number":  meta["review_number"],
+            "source":         meta["source"],
+            "text":           doc
         })
-
     above_cutoff = [r for r in all_results if r["score"] >= SCORE_CUTOFF]
     return above_cutoff if above_cutoff else all_results[:3]
 
 
-def _query_multi(
-    query_embedding: list,
-    professors:      list,
-    collection:      chromadb.Collection
-) -> list:
-    """
-    K=7 per professor, no cutoff filtering, ranked by average score.
-    Always returns top 3 (or both if comparing two professors).
-    """
+def _query_multi(query_embedding: list, professors: list) -> list:
     professor_scores = {}
     professor_chunks = {}
-
     for professor in professors:
         try:
-            results = collection.query(
+            results = _COLLECTION.query(
                 query_embeddings = [query_embedding],
                 n_results        = K_MULTI,
                 where            = {"professor_name": professor},
@@ -222,19 +188,14 @@ def _query_multi(
             )
         except Exception:
             continue
-
         docs      = results["documents"][0]
         metadatas = results["metadatas"][0]
         distances = results["distances"][0]
-
         if not docs:
             continue
-
-        # No cutoff filtering in multi mode — ranking handles relevance
-        similarities = [round(1 - d, 4) for d in distances]
-        filtered     = list(zip(docs, metadatas, similarities))
-
-        avg_score = round(sum(s for _, _, s in filtered) / len(filtered), 4)
+        similarities             = [round(1 - d, 4) for d in distances]
+        filtered                 = list(zip(docs, metadatas, similarities))
+        avg_score                = round(sum(s for _, _, s in filtered) / len(filtered), 4)
         professor_scores[professor] = avg_score
         professor_chunks[professor] = filtered
 
@@ -259,7 +220,6 @@ def _query_multi(
                 for doc, meta, score in chunks[:3]
             ]
         })
-
     return output
 
 
@@ -267,19 +227,13 @@ def _query_multi(
 # PROMPT BUILDING
 # ─────────────────────────────────────────────
 
-def build_prompt(query: str, results: list, professors: list) -> str:
-
-    # Single professor — flat review list with source labels
+def _build_prompt(query: str, results: list, professors: list) -> str:
     if len(professors) == 1:
-        if not results:
-            evidence = "No relevant reviews found."
-        else:
-            evidence = "\n".join([
-                f"[Source: {r['source']}, Review #{r['review_number']}]: {r['text']}]"
-                for r in results
-            ])
-
-    # Multi professor — grouped by professor with source labels
+        evidence = "\n".join([
+            f"[Source: {r['source']}, Review #{r['review_number']}]: {r['text']}"
+            for r in results
+        ]) if results else "No relevant reviews found."
+        citation_format = "cite inline as (Review #[num])"
     else:
         if not results:
             evidence = "No relevant reviews found."
@@ -290,19 +244,16 @@ def build_prompt(query: str, results: list, professors: list) -> str:
                 evidence += f"(avg relevance: {result['average_score']}) ---\n"
                 for review in result["top_reviews"]:
                     evidence += (
-                        f"[source: {review['source']},"
+                        f"[Source: {review['source']}, "
                         f"Review #{review['review_number']}]: "
                         f"{review['text']}\n"
                     )
-
-    if len(professors) == 1:
-        citation_format = "cite inline as (Review #[num])"
-    else:
         citation_format = "cite inline as ([professor last name], Review #[num])"
+
     return f"""Using ONLY the student reviews provided below, answer the question.
 Do not use any information outside of these reviews.
 If the reviews do not contain enough information, say so explicitly.
-When refrencing a review inline, {citation_format}.
+When referencing a review inline, {citation_format}.
 At the end of your response, list every source document you drew from.
 
 STUDENT REVIEWS:
@@ -314,121 +265,108 @@ ANSWER (based solely on the reviews above, cite sources at the end):"""
 
 
 # ─────────────────────────────────────────────
-# GENERATION
+# PUBLIC API
 # ─────────────────────────────────────────────
 
-def generate(
-    query:       str,
-    results:     list,
-    professors:  list,
-    groq_client: Groq
-) -> str:
+def ask(question: str) -> dict:
     """
-    Sends the grounded prompt to Groq's llama-3.3-70b-versatile
-    and returns the generated response.
+    End-to-end RAG pipeline. The only public function app.py needs.
 
-    The system prompt strictly forbids the LLM from using
-    outside knowledge — it must answer only from the reviews.
+    Args:
+        question: natural language question from the user
+
+    Returns:
+        dict with keys:
+            "answer"   -- LLM response string
+            "sources"  -- list of source strings, one per source
+            "detected" -- which professors were detected
     """
-    prompt = build_prompt(query, results, professors)
+    if not question.strip():
+        return {
+            "answer":   "Please enter a question.",
+            "sources":  [],
+            "detected": ""
+        }
 
-    response = groq_client.chat.completions.create(
+    # Detect professors
+    matched = detect_professors(question)
+
+    if len(matched) == 0:
+        professors = ALL_PROFESSORS
+        detected   = "Comparing all professors"
+    elif len(matched) == 1:
+        professors = matched
+        detected   = f"Single professor: {matched[0]}"
+    else:
+        professors = matched
+        detected   = f"Comparing: {', '.join(matched)}"
+
+    # Retrieve and generate
+    results       = _retrieve(question, professors)
+    prompt        = _build_prompt(question, results, professors)
+    response      = _GROQ_CLIENT.chat.completions.create(
         model    = GROQ_MODEL,
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user",   "content": prompt}
         ],
-        temperature = 0.2,   # low temperature = more factual, less creative
+        temperature = 0.2,
         max_tokens  = 1024
     )
+    full_response = response.choices[0].message.content
 
-    return response.choices[0].message.content
-
-
-# ─────────────────────────────────────────────
-# FULL PIPELINE
-# ─────────────────────────────────────────────
-
-def ask(
-    query:       str,
-    model:       SentenceTransformer,
-    collection:  chromadb.Collection,
-    groq_client: Groq,
-    all_professors: list
-) -> str:
-    """
-    Full RAG pipeline in one call:
-        1. Detect which professors the query is about
-        2. Retrieve relevant chunks from ChromaDB
-        3. Build a grounded prompt
-        4. Generate a response with Groq
-        5. Return the response
-
-    Args:
-        query:          natural language question
-        model:          loaded SentenceTransformer
-        collection:     ChromaDB collection
-        groq_client:    Groq API client
-        all_professors: full professor list from the database
-
-    Returns:
-        LLM response string grounded in retrieved reviews
-    """
-
-    # Step 1 — detect professors
-    matched = detect_professors(query, all_professors)
-    
-
-    if len(matched) == 0:
-        print("→ No professor named — comparing all professors")
-        professors = all_professors
-    elif len(matched) == 1:
-        print(f"→ Single professor detected: {matched[0]}")
-        professors = matched
+    # Split answer and sources
+    if "Sources:" in full_response:
+        parts        = full_response.split("Sources:", 1)
+        answer       = parts[0].strip()
+        sources_list = [
+            line.strip()
+            for line in parts[1].strip().splitlines()
+            if line.strip()
+        ]
     else:
-        print(f"→ Multiple professors detected: {', '.join(matched)}")
-        professors = matched
+        answer       = full_response.strip()
+        sources_list = []
 
-    # Step 2 — retrieve
-    results = retrieve(query, professors, model, collection)
-
-    # Step 3 & 4 — build prompt and generate
-    response = generate(query, results, professors, groq_client)
-
-    return response
-
-
+    return {
+        "answer":   answer,
+        "sources":  sources_list,
+        "detected": detected
+    }
 # ─────────────────────────────────────────────
-# MAIN
+# MAIN — standalone mode
 # ─────────────────────────────────────────────
 
 def main():
-    model, collection, groq_client = load_clients()
-    all_professors = get_all_professors(collection)
-
-    print(f"Professors in database: {', '.join(all_professors)}")
+    print(f"Professors in database: {', '.join(ALL_PROFESSORS)}")
     print("Type your question, or 'quit' to exit.\n")
 
-    # Single query mode — passed as command line argument
+    # Single question mode
     if len(sys.argv) > 1:
-        query    = " ".join(sys.argv[1:])
-        response = ask(query, model, collection, groq_client, all_professors)
-        print(f"\nQ: {query}")
-        print(f"\nA: {response}\n")
+        question         = " ".join(sys.argv[1:])
+        result = ask(question)
+        print(f"\nDetected: {detected}")
+        print(f"\nA {result['answer']}")
+        print("\nSources:")
+        for s in result['sources']:
+            print(f"  • {s}")
         return
 
     # Interactive mode
     while True:
-        query = input("Question: ").strip()
-
-        if query.lower() in ("quit", "exit", "q"):
+        question = input("Question: ").strip()
+        if question.lower() in ("quit", "exit", "q"):
             print("Exiting.")
             break
-        if not query:
+        if not question:
             continue
-
-        response = ask(query, model, collection, groq_client, all_professors)
-        print(f"\nA: {response}\n")
+        result = ask(question)
+        print(f"\nDetected: {result['detected']}")
+        print(f"\nA: {result['answer']}")
+        print("\nSources:")
+        for s in result['sources']:
+            print(f"  • {s}")
+        print() 
 
 
 if __name__ == "__main__":

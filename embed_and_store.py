@@ -103,6 +103,7 @@ def build_metadata(chunk: dict, source_file: str) -> dict:
     return {
         "source":          f"Rate My Professor - {professor}",
         "chunk_position":  chunk["chunk_id"],
+        "review_number":   chunk["review_number"],
         "professor_name":  professor,
         "token_estimate":  chunk["token_estimate"]
     }

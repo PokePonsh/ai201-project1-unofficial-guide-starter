@@ -148,6 +148,7 @@ def chunk_reviews(reviews: list, professor_name: str) -> list:
         list of chunk dicts
     """
     chunks = []
+    review_number = 1       # for metadata, reset for each professor
     for i, review in enumerate(reviews):
         cleaned = clean_review(review)
 
@@ -159,8 +160,10 @@ def chunk_reviews(reviews: list, professor_name: str) -> list:
             "chunk_id":        i,
             "professor_name":  professor_name,
             "text":            cleaned,
-            "token_estimate":  len(cleaned.split())   # rough word count
+            "token_estimate":  len(cleaned.split()),   # rough word count
+            "review_number":   review_number          #professor-specific review number
         })
+        review_number += 1
 
     return chunks
 

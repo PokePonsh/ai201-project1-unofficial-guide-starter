@@ -52,7 +52,7 @@ This is unavailible through official channels, as professor feedback from studen
 
 **Why these choices fit your documents:** As explained above these choices fit as they best break down rate my professor, as it is review based, meaning that each review is short enough that it can be treated as its own chunk, and hence needs no overlap.
 
-**Final chunk count:** 828
+**Final chunk count:** 986
 
 ---
 
@@ -79,9 +79,9 @@ This is unavailible through official channels, as professor feedback from studen
      Do not just say "I told it to use the documents" — show the actual instruction or explain
      the mechanism. -->
 
-**System prompt grounding instruction:**
+**System prompt grounding instruction:** I grounded the llm by giving it a set of strict rule in the overall prompt. The rules include various ways that the system can begin halucinating. It specifically specifies to only use information from the provided references, not to use outside information, not to make up or use unrelated or unprovided information.
 
-**How source attribution is surfaced in the response:**
+**How source attribution is surfaced in the response:** The source attribution is shown via in text references to a list of sources it used. In this specific case, it shows that it got the information from RMP, and shows which professor the review was for, and which review it was on RMP's website, so that if needed, someone can find the exact review it was referencing.
 
 ---
 
@@ -93,11 +93,11 @@ This is unavailible through official channels, as professor feedback from studen
 
 | # | Question | Expected answer | System response (summarized) | Retrieval quality | Response accuracy |
 |---|----------|-----------------|------------------------------|-------------------|-------------------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
-| 4 | | | | | |
-| 5 | | | | | |
+| 1 | Which professor teaches the concepts of Organic Chemsitry the best?| Steven Fleming| Steven Fleming, followed by Gilbert| Partially Relevent| Accurate|
+| 2 | Which professor between Steven Fleming and Serge Jasmin has a better grading curve?| Serge Jasmin| Possibly Jasmin, but not enough information to give a definitive answer| Relevent| Accurate|
+| 3 | What is the general opinion of Fleming's teaching style| Clear, Content Heavy, Ocassionally dismissive.| Thoughrough, content heavy, not for everyone| Relevent| Accurate|
+| 4 | Between these two professors: Dr. Kaur or Dr. Fleming which is better at explaining Organic Chemistry| Dr. kaur| Depends on their context, but Kaur is clearer| Relevent| Accurate|
+| 5 | Which Professor is most leniant about late work| Professor Kaur| Not Enough information| Off-taget | Partially Accurate|
 
 **Retrieval quality:** Relevant / Partially relevant / Off-target  
 **Response accuracy:** Accurate / Partially accurate / Inaccurate
@@ -117,13 +117,13 @@ This is unavailible through official channels, as professor feedback from studen
      "The embedding model treated the professor's nickname as out-of-vocabulary and returned
      results from an unrelated review" is an explanation. -->
 
-**Question that failed:**
+**Question that failed:** What is the most recent opinionson professor fleming?
 
-**What the system returned:**
+**What the system returned:** Returned a viable answer based on the provided chunks, however provided chunks are irrelevent to the question.
 
-**Root cause (tied to a specific pipeline stage):**
+**Root cause (tied to a specific pipeline stage):** The issue is in my chunking. This is because when chunking our reviews, our program only collects the information from the actual review text and the professor's name, and doesn't include anything else, including review date, meaning our embedding does not include anything but the actual review context, and to which professor that review corresponds. This means that the retriever has no time information to retrieve from, meaning it retrieves basically random reviews. 
 
-**What you would change to fix it:**
+**What you would change to fix it:** For this case, I can go about fixing it in two ways. In the more simple case, I can inform the system that the higher the review number is, the further back the review was made. This works as RMP displays more recent reviews first and older ones later, meaning that this simple solution can workk well for this specific context issue. However, if I want a more complex solution that is more robust, I could increase the chunker's scope to also inclue the review's provided date, and other less relevent(in my opinion) information such as students final grades, numberical reviews, and tags. While this would be more complex to implement, if we then attach the additional information to each text review's metadata, our program can make more robust answers, while also solving the timeline issue.
 
 ---
 
@@ -132,9 +132,9 @@ This is unavailible through official channels, as professor feedback from studen
 <!-- Reflect on how planning.md shaped your implementation.
      Answer both questions with at least 2–3 sentences each. -->
 
-**One way the spec helped you during implementation:**
+**One way the spec helped you during implementation:** One unique way in which the specs helped me during implemintation was learning the overall path beforehand. Before doing the planning, I wasn't completely sure on what the overall path connected to one another. Additionally, some steps were entirely foreign to me. Completing the planning.md spec sheet allowed me to learn the connections, and understand the steps fully before implementation, allowing me to more easily transfer between steps, as I understoon how to tie each step into the other.
 
-**One way your implementation diverged from the spec, and why:**
+**One way your implementation diverged from the spec, and why:** One way my implementation diverged from the spec was via additional information being added to the metadata, specifically the review's number on RMP's website. While this was not necesarilly needed, this change was made in order to make in order to simplify and make the LLM's output less confusing, more trackable, and more possible for fact checking the information that the answer is using to provide answes.
 
 ---
 
@@ -151,12 +151,12 @@ This is unavailible through official channels, as professor feedback from studen
 
 **Instance 1**
 
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+- *What I gave the AI:* I gave Claude my original plan on how to chunk the reviews, and asked it to create the system in which to both import the website's HTML, and to clean it up to the correct chunking.
+- *What it produced:* It returned a disfuntional program that although could produce the desired results, would neither succeed most of the time, didn't store the chunks anywhere, and only allowed one source to be entered at a time. 
+- *What I changed or overrode:* After figuring out why the program was not functioning, I changed the timing to ensure it always suceeded in loading the HTML, Stores the chunks, and added implemintation for passing in a .txt file reader that can run the chunk maker on all the provided RMP links at once, combining them all into one stored chunks file.
 
 **Instance 2**
 
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+- *What I gave the AI:* I fed Claude the three project files that I had been working on, and app.py from the project guideline. I asked it to join together my three seperate Project files that contained the functionality of my program into one program that I could use in app.py to create the UI.
+- *What it produced:* It produced a program that didn't just combine all the functionality file, but also directly added the app.py to the program. 
+- *What I changed or overrode:* I changed this overall program into a seperate program that just ran the functionality without directly leading to the UI. I made this change for the main reason that I wanted to ensure that the code itself still worked without the UI, so  that I knew that I could more easily edit any issues with the code, rather then dealing with them being directly tied to the ui.
