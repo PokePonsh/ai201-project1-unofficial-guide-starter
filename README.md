@@ -46,13 +46,13 @@ This is unavailible through official channels, as professor feedback from studen
      - Any preprocessing you did before chunking (e.g., stripping HTML, removing headers)
      - What your final chunk count was across all documents -->
 
-**Chunk size:**
+**Chunk size:** Chunk size is about 300-600 characters, as this is the length of rate my professor reviews.
 
-**Overlap:**
+**Overlap:** I used 0 overlap, as each chunk created is its own standalone review, meaning that there is no need for overlap, as each chunk is entirely self contained.
 
-**Why these choices fit your documents:**
+**Why these choices fit your documents:** As explained above these choices fit as they best break down rate my professor, as it is review based, meaning that each review is short enough that it can be treated as its own chunk, and hence needs no overlap.
 
-**Final chunk count:**
+**Final chunk count:** 828
 
 ---
 
@@ -64,9 +64,9 @@ This is unavailible through official channels, as professor feedback from studen
      Consider: context length limits, multilingual support, accuracy on domain-specific text,
      latency, and local vs. API-hosted. -->
 
-**Model used:**
+**Model used:** all-mpnet-base-v2
 
-**Production tradeoff reflection:**
+**Production tradeoff reflection:** I would weight the ability to understand reviews from different languages, be able to understand more sources of different lengths and types rather than all short reviews, and I would try to add more accuracy by collecting the sentiment of students comparatively with the grade they recieved in the class to see if such factors affected their opinions od the instructor.
 
 ---
 
